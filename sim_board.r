@@ -84,108 +84,71 @@ draw_triangles <- function(a = 1, b, lambda, height = 1, ...) {
 }
 
 power_maker <- function(i) {
-  if (i %% 2 != 0) {
-    pos <- seq(1, i, by = 2)
-    out <- c(rev(pos) * (-1), pos)
-  }
-  if (i %% 2 == 0) {
-    if (i == 0) {
-      out <- 0
-    } else {
-      pos <- seq(2, i, by = 2)
-      out <- c(rev(pos) * (-1), 0, pos)
-    }
-  }
+  out <- seq(-i, i, by = 2)
   return(out)
 }
 
-plot_board <- function(a = 1, b = 10, lambda = 1.15, n_times = 10,
+plot_board <- function(a = 1, b = 10, lambda = 1.15, n_gates = 10,
   xlog = FALSE, height = 1) {
-
-  plot(1, 1, type = "n", ylim = c(b - (2 * n_times), b),
-    xlim = c(a * lambda^(-n_times), a * lambda^(n_times)),
+  plot(1, 1, type = "n", ylim = c(b - (2 * n_gates), b),
+    xlim = c(a * lambda^(-n_gates), a * lambda^(n_gates)),
     frame.plot = FALSE, axes =  FALSE, ann = FALSE, xlog = xlog)
-
-  for (i in 1:n_times) {
+  abline(v = a, lty = 2, col = col_alpha("gray", 0.2))
+  for (i in 1:n_gates) {
     powers <- power_maker(i - 1)
     draw_triangles(a * lambda^powers, b - i + 1, lambda, border = NA,
-      height = height, col = col_alpha(gray(0.5), 0.5))
+      height = height, col = gray(0.7))
   }
-
+  final_bins <- a * lambda^power_maker(n_gates)
+  axis(1, at = final_bins, labels = power_maker(n_gates))
+  final_gates <- a * lambda^power_maker(n_gates - 1)
+  axis(1, at = final_gates, labels = NA, tck = -0.01)
+  mtext("logarithmic units", 1, line = 2.25)
 }
+
+plot_board(height = 0.8)
 
 # seperate the simulation from the display?
 
-sim_balls <- function(n_balls, start_time, n_times, a, b, lambda) {
-
-  final_bins <- a * lambda^power_maker(n_times)
-  final_bins_counts <- rep(0, length(final_bins))
-  hist_scale <- 0.06
-  hist_baseline <- b - 2 * n_times
+sim_balls <- function(n_balls, start_times, n_gates, a, lambda) {
   
-  n_keyframes <- (n_balls + n_times + 2)
+  n_keyframes <- (n_balls + (n_gates + 1))
+
+  # 'gate' n_gates + 1 is simply the exit hole
 
   keyframes <- list()
 
   for (i in 1:n_keyframes) {
+    # calculate the position of each ball at each keyframe
     if (i == 1) {
       balls <- data.frame(ball = 1:n_balls,
         x = a,
-        y = b + 3,
-        start_time = start_time,
-        active_time = 0,
-        state = "inactive")
-      balls$state <- as.character(balls$state)
+        start_time = start_times,
+        gates_remaining = n_gates)
     } else {
       balls <- keyframes[[i - 1]]
     }
-    
+
     # update locations in balls
 
-    active <- which(balls$start_time <= i)
-    if (length(active) > 0) {
-      balls$active_time[active] <- balls$active_time[active] + 1
-      balls$state[active] <- "active"
-    }
-
-    starting <- which(balls$start_time == i)
-    if (length(starting) > 0) {
-      balls$y[starting] <- b
-      balls$state[starting] <- "starting"
-    }
-
-    on_board <- which(balls$start_time < i & balls$active_time <= (n_times + 1))
+    on_board <- which(balls$gates_remaining > 0 & balls$start_time <= i)
     if (length(on_board) > 0) {
-      balls$y[on_board] <- balls$y[on_board] - 1
       next_move <- sample(c(-1, 1), length(on_board), replace = TRUE)
-      balls$x[on_board] <- balls$x[on_board] * c^next_move
-      balls$state[on_board] <- "on_board"
+      balls$x[on_board] <- balls$x[on_board] * lambda^next_move
+      balls$gates_remaining[on_board] <- balls$gates_remaining[on_board] - 1
     }
 
-    falling <- which(balls$active_time == (n_times + 2))
+    falling <- which(balls$gates_remaining == 0)
     if (length(falling) > 0) {
-      balls$y[falling] <- b - (n_times * 1.2)
-      balls$state[falling] <- "falling"
+      # how to do this in a non-hacky way?
     }
 
-    landing <- which(balls$active_time == (n_times + 3))
-    if (length(landing) > 0) {
-      for (j in 1:length(landing)) {
-        my_bin <- which(round(final_bins, 3) == round(balls$x[landing[j]], 3))
-        balls$y[landing[j]] <- hist_baseline + (final_bins_counts[my_bin] + 1) * hist_scale
-        final_bins_counts[my_bin] <- final_bins_counts[my_bin] + 1
-      }
-      balls$state[landing] <- "landing"
-    }
-
-    resting <- which(balls$active_time >= (n_times + 4))
-    if (length(resting) > 0) {
-      balls$state[resting] <- "resting"
-    }
+    if (i %% 100 == 0) print(i)
 
     keyframes[[i]] <- balls
   }
 
+  # slooooow
   for (i in 1:n_keyframes) {
     keyframes[[i]]$time <- i
     if (i == 1) {
@@ -201,47 +164,238 @@ sim_balls <- function(n_balls, start_time, n_times, a, b, lambda) {
 
 
 
+
+
 ##########
-
-rose_to_cyan <- c(
-  "#FF254D",
-  "#EC0071",
-  "#C74D86",
-  "#886B9C",
-  "#2F9390"
-)
-
-# n_times = 6, n_balls = 180, hist_scale = 0.1
-# n_times = 14, n_balls = 180, hist_scale = 0.06
 
 a <- 1
 b <- 10
-n_times <- 14
-c <- 2.65^(1/n_times)
-
-# plot_board(a = a, b = b, c = c, n_times = n_times, xlog = FALSE, frac = 1)
-
-# simulate balls falling through
-
+n_gates <- 10
+lambda <- 2.65^(1/n_gates)
 n_balls <- 100
-start_time <- 1:n_balls # each ball starts one after the other
+
+start_times <- 1:n_balls # each ball starts one after the other
 
 set.seed(1001)
-locations <- sim_balls(n_balls, start_time, n_times, a, b, c)
+keyframe_locations <- sim_balls(n_balls, start_times, n_gates, a, lambda)
 
-n_keyframes <- (n_balls + n_times + 2)
+n_keyframes <- length(unique(keyframe_locations$time))
 
-all_bins <- sort(unique(locations$x))
-all_bins_cols <- data_gradient(all_bins, colors = rev(rose_to_cyan))
+# assign colors to each ball at its current position at time t
+all_bins <- sort(unique(keyframe_locations$x))
+all_bins_cols <- data_gradient(all_bins)
+# keyframe_locations$ball_col <- all_bins_cols[match(round(keyframe_locations$x, 3), round(all_bins, 3))]
+keyframe_locations$ball_col <- "black"
 
-locations$ball_col <- all_bins_cols[match(round(locations$x, 3), round(all_bins, 3))]
+keyframe_locations$y <- b - n_gates + keyframe_locations$gates_remaining
 
-# offset to look real
-tar <- which(locations$state %in% c("starting", "on_board"))
-locations$y[tar] <- locations$y[tar] + 0.09
+# keyframe animation test
+
+# dir_init("./keyframes")
+
+# for (i in 1:n_keyframes) {
+
+#   current_frame <- which(keyframe_locations$time == i)
+
+#   current_x <- keyframe_locations$x[current_frame]
+#   current_y <- keyframe_locations$y[current_frame]
+
+#   filename <- paste0("./keyframes/keyframe", sprintf("%04d", i), ".png")
+#   png(filename, res = 300, height = 4, width = 5, units = "in")
+#   global_mar <- c(4.1, 0, 0, 0)
+#   par(mar = global_mar)
+#   plot_board(a = a, b = b, lambda = lambda,
+#     n_gates = n_gates, xlog = FALSE, height = 0.8)
+#   points(current_x, current_y, pch = 16, cex = 0.5 * (20/n_gates),
+#     col = col_alpha(keyframe_locations$ball_col[current_frame], 1))
+#   final_bins <- a * lambda^power_maker(n_gates)
+#   axis(1, at = final_bins, labels = power_maker(n_gates))
+#   mtext("logarithmic units", 1, line = 2.25)
+#   dev.off()
+
+#   if (i %% 100 == 0) print(i)
+
+# }
 
 
 #######
+
+# how to smoothly animate between keyframes?
+
+ticks <- seq(1, n_keyframes, by = 1)
+n_ticks <- length(ticks)
+
+# for each tick, find the keyframes you are *between* 
+# and calculate intermediate values
+# for both x and y, the ball color, and store them
+
+locations <- keyframe_locations
+
+for (i in 1:length(ticks)) {
+  # assuming keyframes are the integers
+  if (ticks[i] %% 1 != 0) {
+    upper <- keyframe_locations[keyframe_locations$time == ceiling(ticks[i]), ]
+    lower <- keyframe_locations[keyframe_locations$time == floor(ticks[i]), ]
+    add <- lower
+    add$time <- ticks[i]
+
+    on_board <- which(lower$gates_remaining > 0 & lower$start_time <= ticks[i])
+    if (length(on_board) > 0) {
+      current_power <- ifelse(upper$x[on_board] < lower$x[on_board], (-1), 1)
+      add$y[on_board] <- lower$y[on_board] - (ticks[i] %% 1)^1.3
+      add$x[on_board] <- lower$x[on_board] * lambda^(current_power *
+        (lower$y[on_board] - add$y[on_board]))
+    }
+
+    locations <- rbind(locations, add)
+
+  }
+}
+
+o <- order(locations$time, locations$ball)
+locations <- locations[o, ]
+
+locations[locations$ball == 1, ]
+
+final <- locations[locations$time == max(locations$time), ]
+final$x <- round(final$x, 3)
+xs <- sort(unique(final$x))
+final$stack_position <- NA
+for (j in 1:length(xs)) {
+  final$stack_position[final$x == xs[j]] <- order(final$start_time[final$x == xs[j]])
+}
+
+counts <- table(final$x)
+hist_scale <- 0.9 / max(counts)
+
+hist_scale * final$stack_position
+
+
+
+dir_init("./frames")
+
+ticks <- sort(unique(locations$time))
+
+for (i in 1:length(ticks)) {
+
+  current_frame <- which(locations$time == ticks[i])
+  current_x <- locations$x[current_frame]
+  current_y <- locations$y[current_frame]
+
+  filename <- paste0("./frames/frame", sprintf("%04d", i), ".png")
+  png(filename, res = 300, height = 4, width = 5, units = "in")
+  global_mar <- c(4.1, 0, 0, 0)
+  par(mar = global_mar)
+  plot_board(a = a, b = b, lambda = lambda,
+    n_gates = n_gates, xlog = FALSE, height = 0.8)
+  points(current_x, current_y, pch = 16, cex = 0.5 * (20/n_gates),
+    col = col_alpha(locations$ball_col[current_frame], 1))
+  dev.off()
+
+  if (i %% 100 == 0) print(i)
+
+}
+
+library(beepr)
+
+beep(4)
+
+# ok, but what about the histogram??
+
+
+
+
+
+
+
+
+
+
+
+# sim_balls <- function(n_balls, start_time, n_gates, a, b, lambda) {
+
+#   final_bins <- a * lambda^power_maker(n_gates)
+#   final_bins_counts <- rep(0, length(final_bins))
+#   hist_scale <- 0.06
+#   hist_baseline <- b - 2 * n_gates
+  
+#   n_keyframes <- (n_balls + n_gates + 2)
+
+#   keyframes <- list()
+
+#   for (i in 1:n_keyframes) {
+#     if (i == 1) {
+#       balls <- data.frame(ball = 1:n_balls,
+#         x = a,
+#         y = b + 3,
+#         start_time = start_time,
+#         active_time = 0,
+#         state = "inactive")
+#       balls$state <- as.character(balls$state)
+#     } else {
+#       balls <- keyframes[[i - 1]]
+#     }
+    
+#     # update locations in balls
+
+#     active <- which(balls$start_time <= i)
+#     if (length(active) > 0) {
+#       balls$active_time[active] <- balls$active_time[active] + 1
+#       balls$state[active] <- "active"
+#     }
+
+#     starting <- which(balls$start_time == i)
+#     if (length(starting) > 0) {
+#       balls$y[starting] <- b
+#       balls$state[starting] <- "starting"
+#     }
+
+#     on_board <- which(balls$start_time < i & balls$active_time <= (n_gates + 1))
+#     if (length(on_board) > 0) {
+#       balls$y[on_board] <- balls$y[on_board] - 1
+#       next_move <- sample(c(-1, 1), length(on_board), replace = TRUE)
+#       balls$x[on_board] <- balls$x[on_board] * c^next_move
+#       balls$state[on_board] <- "on_board"
+#     }
+
+#     falling <- which(balls$active_time == (n_gates + 2))
+#     if (length(falling) > 0) {
+#       balls$y[falling] <- b - (n_gates * 1.2)
+#       balls$state[falling] <- "falling"
+#     }
+
+#     landing <- which(balls$active_time == (n_gates + 3))
+#     if (length(landing) > 0) {
+#       for (j in 1:length(landing)) {
+#         my_bin <- which(round(final_bins, 3) == round(balls$x[landing[j]], 3))
+#         balls$y[landing[j]] <- hist_baseline + (final_bins_counts[my_bin] + 1) * hist_scale
+#         final_bins_counts[my_bin] <- final_bins_counts[my_bin] + 1
+#       }
+#       balls$state[landing] <- "landing"
+#     }
+
+#     resting <- which(balls$active_time >= (n_gates + 4))
+#     if (length(resting) > 0) {
+#       balls$state[resting] <- "resting"
+#     }
+
+#     keyframes[[i]] <- balls
+#   }
+
+#   for (i in 1:n_keyframes) {
+#     keyframes[[i]]$time <- i
+#     if (i == 1) {
+#       locations <- keyframes[[i]]
+#     } else {
+#       locations <- rbind(locations, keyframes[[i]])
+#     }
+#   }
+
+#   return(locations)
+
+# }
+
+
 
 
 
@@ -258,11 +412,11 @@ for (i in 1:n_keyframes) {
   png(filename, res = 300, height = 4, width = 5, units = "in")
   global_mar <- c(4.1, 0, 0, 0)
   par(mar = global_mar)
-  plot_board(a = a, b = b, c = c, n_times = n_times, xlog = FALSE, frac = 0.8)
-  points(current_x, current_y, pch = 16, cex = 0.5 * (20/n_times),
+  plot_board(a = a, b = b, c = c, n_gates = n_gates, xlog = FALSE, frac = 0.8)
+  points(current_x, current_y, pch = 16, cex = 0.5 * (20/n_gates),
     col = col_alpha(locations$ball_col[current_frame], 1))
-  final_bins <- a * c^power_maker(n_times)
-  axis(1, at = final_bins, labels = power_maker(n_times))
+  final_bins <- a * c^power_maker(n_gates)
+  axis(1, at = final_bins, labels = power_maker(n_gates))
   mtext("logarithmic units", 1, line = 2.25)
   dev.off()
 
@@ -279,9 +433,9 @@ for (i in 1:n_keyframes) {
     tar <- which(locations$state[next_frame_subset] %in% c("starting", "on_board"))
     if (length(tar) > 0) intermediate_y[tar] <- current_y[tar] - 0.3
     tar <- which(locations$state[next_frame_subset] %in% c("falling"))
-    if (length(tar) > 0) intermediate_y[tar] <- b - (n_times * 1.1)
+    if (length(tar) > 0) intermediate_y[tar] <- b - (n_gates * 1.1)
     tar <- which(locations$state[next_frame_subset] %in% c("landing"))
-    if (length(tar) > 0) intermediate_y[tar] <- b - (n_times * 1.6)
+    if (length(tar) > 0) intermediate_y[tar] <- b - (n_gates * 1.6)
 
     intermediate_x <- current_x
     tar <- which(locations$state[next_frame_subset] %in% c("starting", "on_board"))
@@ -291,11 +445,11 @@ for (i in 1:n_keyframes) {
     png(filename, res = 300, height = 4, width = 5, units = "in")
     global_mar <- c(4.1, 0, 0, 0)
     par(mar = global_mar)
-    plot_board(a = a, b = b, c = c, n_times = n_times, xlog = FALSE, frac = 0.8)
-    points(intermediate_x, intermediate_y, pch = 16, cex = 0.5 * (20/n_times),
+    plot_board(a = a, b = b, c = c, n_gates = n_gates, xlog = FALSE, frac = 0.8)
+    points(intermediate_x, intermediate_y, pch = 16, cex = 0.5 * (20/n_gates),
       col = col_alpha(locations$ball_col[current_frame], 1))
-    final_bins <- a * c^power_maker(n_times)
-    axis(1, at = final_bins, labels = power_maker(n_times))
+    final_bins <- a * c^power_maker(n_gates)
+    axis(1, at = final_bins, labels = power_maker(n_gates))
     mtext("logarithmic units", 1, line = 2.25)
     dev.off()
 
