@@ -94,7 +94,7 @@ sim_balls <- function(n_balls, start_time, n_levels, a, b, c) {
 
   final_bins <- a * c^power_maker(n_levels)
   final_bins_counts <- rep(0, length(final_bins))
-  hist_scale <- 0.2
+  hist_scale <- 0.06
   hist_baseline <- b - 2 * n_levels
   
   n_keyframes <- (n_balls + n_levels + 2)
@@ -209,17 +209,19 @@ rose_to_cyan <- c(
   "#2F9390"
 )
 
+# n_levels = 6, n_balls = 180, hist_scale = 0.1
+# n_levels = 14, n_balls = 180, hist_scale = 0.06
 
 a <- 1
 b <- 10
-n_levels <- 10
+n_levels <- 14
 c <- 2.65^(1/n_levels)
 
 # plot_board(a = a, b = b, c = c, n_levels = n_levels, xlog = FALSE, frac = 1)
 
 # simulate balls falling through
 
-n_balls <- 180
+n_balls <- 1000
 start_time <- 1:n_balls # each ball starts one after the other
 
 set.seed(1001)
@@ -243,7 +245,7 @@ locations$y[tar] <- locations$y[tar] + 0.09
 
 dir_init("./keyframes")
 
-for (i in 1:n_keyframes) {
+for (i in 700:900) {
 
   current_frame <- which(locations$time == i & locations$active_time <= i)
 
@@ -263,7 +265,7 @@ for (i in 1:n_keyframes) {
   dev.off()
 
   # # draw intermediate frames
-  if (i < n_keyframes) {
+  if (i < 1 * n_keyframes) {
 
     next_frame_subset <- which(locations$time == (i + 1) &
       locations$ball %in% locations$ball[current_frame])
@@ -301,5 +303,12 @@ for (i in 1:n_keyframes) {
 
 }
 
-system("convert -loop 1 -delay 7 ./keyframes/keyframe* ./test.gif")
+
+library(beepr)
+
+
+system("convert -loop 1 -delay 7 ./keyframes/keyframe* ./test_14.gif")
+
+beep(5)
+
 
