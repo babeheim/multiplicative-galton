@@ -1,6 +1,8 @@
 
 rm(list = ls())
 
+library(beepr)
+
 # note: to make the final gif files, this script calls system function:
 # `convert` (http://imagemagick.org/script/index.php)
 
@@ -244,7 +246,7 @@ for (i in 1:length(ticks)) {
   current_y <- locations$y[current_frame]
 
   filename <- paste0("./frames/frame", sprintf("%04d", i), ".png")
-  png(filename, height = 600, width = 600, units = "px", pointsize = 30)
+  png(filename, height = 5, width = 5, units = "in", res = 300)
   global_mar <- c(4.1, 0, 0, 0)
   par(mar = global_mar)
 
@@ -269,12 +271,12 @@ for (i in 1:length(ticks)) {
   # add a diagram explaining the geometry
 
   diag_off <- 1 * a
-  diag_height <- 3
+  diag_height <- 3 * n_gates / 10
 
   # text(a + 0.5 * diag_off, b - 2, paste0("c = ", sprintf("%1.2f", lambda)),
   #   cex = text_size)
 
-  draw_triangles(a, b, lambda, col = NA, height = 3, offset = diag_off)
+  draw_triangles(a, b, lambda, col = NA, height = diag_height, offset = diag_off)
   lines(c(a, a) + diag_off, c(b, b - diag_height), lty = 2)
 
   text(a + diag_off, (b - diag_height), pos = 1,
